@@ -81,7 +81,7 @@ export async function uploadPartialFiles(
     ephemeral,
     config,
   }: {
-    setProgress: (progress: number) => void;
+    setProgress: (o: { percent: number; remaining: number; speed: number }) => void;
     setLoading: (loading: boolean) => void;
     setFiles: (files: File[]) => void;
     clipboard: ReturnType<typeof useClipboard>;
@@ -92,7 +92,7 @@ export async function uploadPartialFiles(
   },
 ) {
   setLoading(true);
-  setProgress(0);
+  setProgress({ percent: 0, remaining: 0, speed: 0 });
 
   for (let i = 0; i !== files.length; ++i) {
     const file = files[i];
@@ -123,6 +123,9 @@ export async function uploadPartialFiles(
     });
 
     let ready = true;
+    let totalLoaded = 0;
+    const start = Date.now();
+
     for (let j = 0; j !== nChunks; ++j) {
       while (!ready) {
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -133,6 +136,24 @@ export async function uploadPartialFiles(
 
       setLoading(true);
       const req = new XMLHttpRequest();
+      let lastLoaded = 0;
+
+      req.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const sent = e.loaded - lastLoaded;
+          lastLoaded = e.loaded;
+          totalLoaded += sent;
+
+          const speed = totalLoaded / ((Date.now() - start) / 1000);
+          const remainingTime = (file.size - totalLoaded) / speed;
+
+          setProgress({
+            percent: Math.round((totalLoaded / file.size) * 100),
+            speed,
+            remaining: remainingTime,
+          });
+        }
+      });
 
       req.addEventListener(
         'load',
@@ -151,12 +172,11 @@ export async function uploadPartialFiles(
             });
             ready = false;
             setFiles([]);
-            setProgress(0);
+            setProgress({ percent: 0, remaining: 0, speed: 0 });
             setLoading(false);
             return;
           }
 
-          setProgress(Math.round(((j + 1) / nChunks) * 100));
           notifications.update({
             id: 'upload-partial',
             title: 'Uploading partial file',
@@ -199,10 +219,10 @@ export async function uploadPartialFiles(
             });
 
             setFiles([]);
-            setProgress(100);
+            setProgress({ percent: 100, remaining: 0, speed: 0 });
             setLoading(false);
 
-            setTimeout(() => setProgress(0), 1000);
+            setTimeout(() => setProgress({ percent: 0, remaining: 0, speed: 0 }), 1000);
           }
 
           ready = true;
@@ -225,6 +245,7 @@ export async function uploadPartialFiles(
 
       ephemeral.password && req.setRequestHeader('x-zipline-password', ephemeral.password);
       ephemeral.filename && req.setRequestHeader('x-zipline-filename', ephemeral.filename);
+      ephemeral.folderId && req.setRequestHeader('x-zipline-folder', ephemeral.folderId);
 
       req.setRequestHeader('x-zipline-p-identifier', identifier);
       req.setRequestHeader('x-zipline-p-filename', file.name);

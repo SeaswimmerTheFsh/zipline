@@ -1,5 +1,5 @@
 import { ZodError, ZodIssue, z } from 'zod';
-import { PROP_TO_ENV, ParsedEnv } from './read';
+import { PROP_TO_ENV, ParsedConfig } from './read';
 import { log } from '../logger';
 import { join, resolve } from 'path';
 import { bytes } from '../bytes';
@@ -79,7 +79,7 @@ export const schema = z.object({
     size: z.number().default(bytes('25mb')),
     enabled: z.boolean().default(true),
   }),
-  scheduler: z.object({
+  tasks: z.object({
     deleteInterval: z.number().default(ms('30min')),
     clearInvitesInterval: z.number().default(ms('30min')),
     maxViewsInterval: z.number().default(ms('30min')),
@@ -192,6 +192,12 @@ export const schema = z.object({
       dark: z.string().default('builtin:dark_gray'),
       light: z.string().default('builtin:light_gray'),
     }),
+    tos: z
+      .string()
+      .transform((s) => resolve(s))
+      .refine((v) => (v ? v.endsWith('.md') : true))
+      .nullable()
+      .default(null),
   }),
   mfa: z.object({
     totp: z.object({
@@ -207,42 +213,49 @@ export const schema = z.object({
       .object({
         clientId: z.string(),
         clientSecret: z.string(),
+        redirectUri: z.string().url().nullable().default(null),
       })
       .or(
         z.object({
           clientId: z.undefined(),
           clientSecret: z.undefined(),
+          redirectUri: z.undefined(),
         }),
       ),
     github: z
       .object({
         clientId: z.string(),
         clientSecret: z.string(),
+        redirectUri: z.string().url().nullable().default(null),
       })
       .or(
         z.object({
           clientId: z.undefined(),
           clientSecret: z.undefined(),
+          redirectUri: z.undefined(),
         }),
       ),
     google: z
       .object({
         clientId: z.string(),
         clientSecret: z.string(),
+        redirectUri: z.string().url().nullable().default(null),
       })
       .or(
         z.object({
           clientId: z.undefined(),
           clientSecret: z.undefined(),
+          redirectUri: z.undefined(),
         }),
       ),
-    authentik: z
+    oidc: z
       .object({
         clientId: z.string(),
         clientSecret: z.string(),
         authorizeUrl: z.string().url(),
         userinfoUrl: z.string().url(),
         tokenUrl: z.string().url(),
+        redirectUri: z.string().url().nullable().default(null),
       })
       .or(
         z.object({
@@ -251,6 +264,7 @@ export const schema = z.object({
           authorizeUrl: z.undefined(),
           userinfoUrl: z.undefined(),
           tokenUrl: z.undefined(),
+          redirectUri: z.undefined(),
         }),
       ),
   }),
@@ -275,13 +289,37 @@ export const schema = z.object({
     adminBypass: z.boolean().default(true),
     allowList: z.array(z.string()).default([]),
   }),
+  httpWebhook: z.object({
+    onUpload: z.string().url().nullable().default(null),
+    onShorten: z.string().url().nullable().default(null),
+  }),
+  ssl: z.object({
+    key: z
+      .string()
+      .transform((s) => resolve(s))
+      .nullable()
+      .default(null),
+    cert: z
+      .string()
+      .transform((s) => resolve(s))
+      .nullable()
+      .default(null),
+  }),
+  pwa: z.object({
+    enabled: z.boolean().default(true),
+    title: z.string().default('Zipline'),
+    shortName: z.string().default('Zipline'),
+    description: z.string().default('Zipline'),
+    themeColor: z.string().default('#000000'),
+    backgroundColor: z.string().default('#000000'),
+  }),
 });
 
 export type Config = z.infer<typeof schema>;
 
 const logger = log('config').c('validate');
 
-export function validateEnv(env: ParsedEnv): Config {
+export function validateConfigObject(env: ParsedConfig): Config {
   const building = !!process.env.ZIPLINE_BUILD;
 
   if (building) {
@@ -298,7 +336,7 @@ export function validateEnv(env: ParsedEnv): Config {
       process.exit(1);
     }
 
-    logger.debug(`environment validated: ${JSON.stringify(validated)}`);
+    logger.debug('reloaded config');
 
     return validated;
   } catch (e) {
@@ -332,7 +370,7 @@ function handleError(error: ZodIssue) {
   const path =
     error.path[1] === 'externalLinks'
       ? `WEBSITE_EXTERNAL_LINKS[${error.path[2]}]`
-      : PROP_TO_ENV[<keyof typeof PROP_TO_ENV>error.path.join('.')] ?? error.path.join('.');
+      : (PROP_TO_ENV[<keyof typeof PROP_TO_ENV>error.path.join('.')] ?? error.path.join('.'));
 
   logger.error(`${path}: ${error.message}`);
 }

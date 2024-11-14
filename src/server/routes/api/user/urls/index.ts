@@ -5,7 +5,7 @@ import { Url } from '@/lib/db/models/url';
 import { log } from '@/lib/logger';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import { onShorten } from '@/lib/discord';
+import { onShorten } from '@/lib/webhooks';
 import fastifyPlugin from 'fastify-plugin';
 import { userMiddleware } from '@/server/middleware/user';
 
@@ -42,7 +42,9 @@ const logger = log('api').c('user').c('urls');
 
 export default fastifyPlugin(
   (server, _, done) => {
-    const rateLimit = server.rateLimit();
+    const rateLimit = server.rateLimit
+      ? server.rateLimit()
+      : (_req: any, _res: any, next: () => any) => next();
 
     server.post<{ Body: Body; Headers: Headers }>(
       PATH,
@@ -96,6 +98,9 @@ export default fastifyPlugin(
             ...(maxViews && { maxViews: maxViews }),
             ...(password && { password: password }),
           },
+          omit: {
+            password: true,
+          },
         });
 
         let domain;
@@ -135,7 +140,7 @@ export default fastifyPlugin(
 
     server.get<{ Querystring: Query }>(PATH, { preHandler: [userMiddleware] }, async (req, res) => {
       const searchQuery = req.query.searchQuery
-        ? decodeURIComponent(req.query.searchQuery.trim()) ?? null
+        ? (decodeURIComponent(req.query.searchQuery.trim()) ?? null)
         : null;
       const searchField = validateSearchField.safeParse(req.query.searchField || 'destination');
       if (!searchField.success) return res.badRequest('Invalid searchField value');

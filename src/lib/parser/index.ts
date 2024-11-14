@@ -7,7 +7,7 @@ import { ParseValueMetrics } from './metrics';
 
 export type ParseValue = {
   file?: File;
-  url?: Url;
+  url?: Partial<Url>;
   user?: User | Omit<User, 'oauthProviders' | 'passkeys'>;
 
   link?: {

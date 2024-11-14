@@ -87,7 +87,7 @@ export default function InviteTableView() {
             },
             {
               accessor: 'actions',
-              width: 100,
+              width: 45 * 2,
               render: (invite) => (
                 <Group gap='sm'>
                   <Tooltip label='Copy invite link'>

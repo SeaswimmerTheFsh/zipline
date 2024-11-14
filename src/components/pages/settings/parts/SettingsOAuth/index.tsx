@@ -3,7 +3,8 @@ import { Response } from '@/lib/api/response';
 import { fetchApi } from '@/lib/fetchApi';
 import { findProvider } from '@/lib/oauth/providerUtil';
 import { useUserStore } from '@/lib/store/user';
-import { Button, ButtonProps, Group, Paper, Text, Title, useMantineTheme } from '@mantine/core';
+import { darken } from '@/lib/theme/color';
+import { Button, ButtonProps, Paper, SimpleGrid, Text, Title, useMantineTheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import type { OAuthProviderType } from '@prisma/client';
 import {
@@ -16,7 +17,6 @@ import {
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { mutate } from 'swr';
-import { darken } from '@/lib/theme/color';
 
 import styles from './index.module.css';
 
@@ -24,14 +24,14 @@ const icons = {
   DISCORD: <IconBrandDiscordFilled size='1rem' />,
   GITHUB: <IconBrandGithubFilled size='1rem' />,
   GOOGLE: <IconBrandGoogleFilled size='1rem' stroke={4} />,
-  AUTHENTIK: <IconCircleKeyFilled size='1rem' />,
+  OIDC: <IconCircleKeyFilled size='1rem' />,
 };
 
 const names = {
   DISCORD: 'Discord',
   GITHUB: 'GitHub',
   GOOGLE: 'Google',
-  AUTHENTIK: 'Authentik',
+  OIDC: 'OpenID Connect',
 };
 
 function OAuthButton({ provider, linked }: { provider: OAuthProviderType; linked: boolean }) {
@@ -90,7 +90,7 @@ export default function SettingsOAuth() {
   const discordLinked = findProvider('DISCORD', user?.oauthProviders ?? []);
   const githubLinked = findProvider('GITHUB', user?.oauthProviders ?? []);
   const googleLinked = findProvider('GOOGLE', user?.oauthProviders ?? []);
-  const authentikLinked = findProvider('AUTHENTIK', user?.oauthProviders ?? []);
+  const oidcLinked = findProvider('OIDC', user?.oauthProviders ?? []);
 
   return (
     <Paper withBorder p='sm'>
@@ -99,12 +99,12 @@ export default function SettingsOAuth() {
         Manage your connected OAuth providers.
       </Text>
 
-      <Group mt='xs'>
+      <SimpleGrid mt='xs' cols={{ base: 1, md: 2 }} spacing='lg'>
         {config.oauthEnabled.discord && <OAuthButton provider='DISCORD' linked={!!discordLinked} />}
         {config.oauthEnabled.github && <OAuthButton provider='GITHUB' linked={!!githubLinked} />}
         {config.oauthEnabled.google && <OAuthButton provider='GOOGLE' linked={!!googleLinked} />}
-        {config.oauthEnabled.authentik && <OAuthButton provider='AUTHENTIK' linked={!!authentikLinked} />}
-      </Group>
+        {config.oauthEnabled.oidc && <OAuthButton provider='OIDC' linked={!!oidcLinked} />}
+      </SimpleGrid>
     </Paper>
   );
 }

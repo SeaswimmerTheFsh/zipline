@@ -6,22 +6,17 @@ import { DataTable, DataTableSortStatus } from 'mantine-datatable';
 import { useEffect, useReducer, useState } from 'react';
 import useSWR from 'swr';
 import { copyUrl, deleteUrl } from '../actions';
-import { IconCopy, IconTrashFilled } from '@tabler/icons-react';
+import { IconCopy, IconPencil, IconTrashFilled } from '@tabler/icons-react';
 import { useConfig } from '@/components/ConfigProvider';
 import { useClipboard } from '@mantine/hooks';
 import { useSettingsStore } from '@/lib/store/settings';
+import { formatRootUrl } from '@/lib/url';
+import EditUrlModal from '../EditUrlModal';
 
 const NAMES = {
-  up: {
-    code: 'Code',
-    vanity: 'Vanity',
-    destination: 'Destination',
-  },
-  down: {
-    code: 'code',
-    vanity: 'vanity',
-    destination: 'destination',
-  },
+  code: 'Code',
+  vanity: 'Vanity',
+  destination: 'Destination',
 };
 
 function SearchFilter({
@@ -49,8 +44,8 @@ function SearchFilter({
 
   return (
     <TextInput
-      label={NAMES.up[field]}
-      placeholder={`Search by ${NAMES.up[field]}`}
+      label={NAMES[field]}
+      placeholder={`Search by ${NAMES[field].toLowerCase()}`}
       value={searchQuery[field]}
       onChange={onChange}
       variant='filled'
@@ -137,6 +132,8 @@ export default function UrlTableView() {
     searchQuery.vanity.trim() !== '' ||
     searchQuery.destination.trim() !== '';
 
+  const [selectedUrl, setSelectedUrl] = useState<Url | null>(null);
+
   useEffect(() => {
     if (data) {
       const sorted = data.sort((a, b) => {
@@ -168,6 +165,8 @@ export default function UrlTableView() {
 
   return (
     <>
+      <EditUrlModal url={selectedUrl} onClose={() => setSelectedUrl(null)} open={!!selectedUrl} />
+
       <Box my='sm'>
         <DataTable
           borderRadius='sm'
@@ -187,11 +186,15 @@ export default function UrlTableView() {
                 />
               ),
               filtering: searchField === 'code' && searchQuery.code.trim() !== '',
+              render: (url) => (
+                <Anchor href={formatRootUrl(config.urls.route, url.code)} target='_blank'>
+                  {url.code}
+                </Anchor>
+              ),
             },
             {
               accessor: 'vanity',
               sortable: true,
-              render: (url) => url.vanity ?? '',
               filter: (
                 <SearchFilter
                   setSearchField={setSearchField}
@@ -201,6 +204,14 @@ export default function UrlTableView() {
                 />
               ),
               filtering: searchField === 'vanity' && searchQuery.vanity.trim() !== '',
+              render: (url) =>
+                url.vanity ? (
+                  <Anchor href={formatRootUrl(config.urls.route, url.vanity)} target='_blank'>
+                    {url.vanity}
+                  </Anchor>
+                ) : (
+                  ''
+                ),
             },
             {
               accessor: 'destination',
@@ -244,7 +255,7 @@ export default function UrlTableView() {
             },
             {
               accessor: 'actions',
-              width: 100,
+              width: 45 * 3,
               render: (url) => (
                 <Group gap='sm'>
                   <Tooltip label='Copy URL'>
@@ -255,6 +266,16 @@ export default function UrlTableView() {
                       }}
                     >
                       <IconCopy size='1rem' />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label='Edit URL'>
+                    <ActionIcon
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedUrl(url);
+                      }}
+                    >
+                      <IconPencil size='1rem' />
                     </ActionIcon>
                   </Tooltip>
                   <Tooltip label='Delete URL'>

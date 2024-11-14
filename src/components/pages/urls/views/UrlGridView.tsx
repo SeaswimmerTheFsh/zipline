@@ -2,19 +2,24 @@ import { Response } from '@/lib/api/response';
 import type { Url } from '@/lib/db/models/url';
 import { Center, Group, LoadingOverlay, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { IconLink } from '@tabler/icons-react';
+import { useState } from 'react';
 import useSWR from 'swr';
+import EditUrlModal from '../EditUrlModal';
 import UrlCard from '../UrlCard';
 
 export default function UrlGridView() {
   const { data: urls, isLoading } = useSWR<Extract<Response['/api/user/urls'], Url[]>>('/api/user/urls');
+  const [selectedUrl, setSelectedUrl] = useState<Url | null>(null);
 
   return (
     <>
+      <EditUrlModal url={selectedUrl} onClose={() => setSelectedUrl(null)} open={!!selectedUrl} />
+
       {isLoading ? (
         <Paper withBorder h={200}>
           <LoadingOverlay visible />
         </Paper>
-      ) : urls?.length ?? 0 !== 0 ? (
+      ) : (urls?.length ?? 0 !== 0) ? (
         <SimpleGrid
           my='sm'
           spacing='md'
@@ -25,7 +30,7 @@ export default function UrlGridView() {
           }}
           pos='relative'
         >
-          {urls?.map((url) => <UrlCard key={url.id} url={url} />)}
+          {urls?.map((url) => <UrlCard setSelectedUrl={setSelectedUrl} key={url.id} url={url} />)}
         </SimpleGrid>
       ) : (
         <Paper withBorder p='sm' my='sm'>

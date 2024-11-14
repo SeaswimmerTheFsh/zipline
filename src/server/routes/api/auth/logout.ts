@@ -1,4 +1,6 @@
+import { prisma } from '@/lib/db';
 import { userMiddleware } from '@/server/middleware/user';
+import { getSession } from '@/server/session';
 import fastifyPlugin from 'fastify-plugin';
 
 export type ApiLogoutResponse = {
@@ -8,17 +10,22 @@ export type ApiLogoutResponse = {
 export const PATH = '/api/auth/logout';
 export default fastifyPlugin(
   (server, _, done) => {
-    server.route<{
-      Body: Body;
-    }>({
-      url: PATH,
-      method: ['GET'],
-      preHandler: [userMiddleware],
-      handler: async (_, res) => {
-        res.header('Set-Cookie', 'zipline_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT');
+    server.get(PATH, { preHandler: [userMiddleware] }, async (req, res) => {
+      const current = await getSession(req, res);
 
-        return res.send({ loggedOut: true });
-      },
+      await prisma.user.update({
+        where: {
+          id: req.user.id,
+        },
+        data: {
+          sessions: {
+            set: req.user.sessions.filter((session) => session !== current.sessionId),
+          },
+        },
+      });
+
+      current.destroy();
+      return res.send({ loggedOut: true });
     });
 
     done();

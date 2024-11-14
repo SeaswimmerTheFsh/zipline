@@ -47,6 +47,7 @@ export default function EditFileDetailsModal({
       mutateFiles();
     }
   };
+
   const handleSave = async () => {
     const data: {
       maxViews?: number;
@@ -95,7 +96,7 @@ export default function EditFileDetailsModal({
         <NumberInput
           label='Max Views'
           placeholder='Unlimited'
-          description='The maximum number of views the files can have before they are deleted. Leave blank to allow as many views as you want.'
+          description='The maximum number of views this file can have before it is deleted. Leave blank to allow as many views as you want.'
           min={0}
           value={maxViews || ''}
           onChange={(value) => setMaxViews(value === '' ? null : Number(value))}
@@ -104,7 +105,7 @@ export default function EditFileDetailsModal({
 
         <TextInput
           label='Original Name'
-          description='Add an original name. When downloading this file instead of using the generated file name (if chosen), it will download with this "original name" instead.'
+          description='Add an original name. When downloading this file, instead of using the generated file name (if chosen), it will download with this "original name" instead.'
           value={originalName ?? ''}
           onChange={(event) =>
             setOriginalName(event.currentTarget.value.trim() === '' ? null : event.currentTarget.value.trim())
@@ -140,7 +141,7 @@ export default function EditFileDetailsModal({
         ) : (
           <PasswordInput
             label='Password'
-            description='Set a password for these files. Leave blank to disable password protection.'
+            description='Set a password for this file. Leave blank to disable password protection.'
             value={password ?? ''}
             autoComplete='off'
             onChange={(event) =>
@@ -153,7 +154,7 @@ export default function EditFileDetailsModal({
         <Divider />
 
         <Button onClick={handleSave} leftSection={<IconPencil size='1rem' />}>
-          Save Changes
+          Save changes
         </Button>
       </Stack>
     </Modal>

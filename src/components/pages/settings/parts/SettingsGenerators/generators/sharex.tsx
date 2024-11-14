@@ -9,9 +9,9 @@ export function sharex(token: string, type: 'file' | 'url', options: GeneratorOp
     RequestMethod: 'POST',
     RequestURL: `${window.location.origin}/api/upload`,
     Headers: {
-      authentication: token,
+      authorization: token,
     },
-    URL: '{json:files[0]}',
+    URL: '{json:files[0].url}',
     Body: 'MultipartFormData',
     FileFormName: 'file',
     Data: undefined,

@@ -1,6 +1,5 @@
 import { ApiAuthOauthResponse } from '@/pages/api/auth/oauth';
 
-// migrated routes
 import { ApiAuthInvitesResponse } from '@/server/routes/api/auth/invites';
 import { ApiAuthInvitesIdResponse } from '@/server/routes/api/auth/invites/[id]';
 import { ApiLoginResponse } from '@/server/routes/api/auth/login';
@@ -11,10 +10,13 @@ import { ApiHealthcheckResponse } from '@/server/routes/api/healthcheck';
 import { ApiServerClearTempResponse } from '@/server/routes/api/server/clear_temp';
 import { ApiServerClearZerosResponse } from '@/server/routes/api/server/clear_zeros';
 import { ApiServerRequerySizeResponse } from '@/server/routes/api/server/requery_size';
+import { ApiServerSettingsResponse } from '@/server/routes/api/server/settings';
+import { ApiServerThumbnailsResponse } from '@/server/routes/api/server/thumbnails';
 import { ApiSetupResponse } from '@/server/routes/api/setup';
 import { ApiStatsResponse } from '@/server/routes/api/stats';
 import { ApiUploadResponse } from '@/server/routes/api/upload';
 import { ApiUserResponse } from '@/server/routes/api/user';
+import { ApiUserExportResponse } from '@/server/routes/api/user/export';
 import { ApiUserFilesResponse } from '@/server/routes/api/user/files';
 import { ApiUserFilesIdResponse } from '@/server/routes/api/user/files/[id]';
 import { ApiUserFilesIdPasswordResponse } from '@/server/routes/api/user/files/[id]/password';
@@ -25,6 +27,7 @@ import { ApiUserFoldersIdResponse } from '@/server/routes/api/user/folders/[id]'
 import { ApiUserMfaPasskeyResponse } from '@/server/routes/api/user/mfa/passkey';
 import { ApiUserMfaTotpResponse } from '@/server/routes/api/user/mfa/totp';
 import { ApiUserRecentResponse } from '@/server/routes/api/user/recent';
+import { ApiUserSessionsResponse } from '@/server/routes/api/user/sessions';
 import { ApiUserStatsResponse } from '@/server/routes/api/user/stats';
 import { ApiUserTagsResponse } from '@/server/routes/api/user/tags';
 import { ApiUserTagsIdResponse } from '@/server/routes/api/user/tags/[id]';
@@ -56,15 +59,19 @@ export type Response = {
   '/api/user/urls': ApiUserUrlsResponse;
   '/api/user/tags/[id]': ApiUserTagsIdResponse;
   '/api/user/tags': ApiUserTagsResponse;
+  '/api/user/sessions': ApiUserSessionsResponse;
   '/api/user': ApiUserResponse;
   '/api/user/stats': ApiUserStatsResponse;
   '/api/user/recent': ApiUserRecentResponse;
   '/api/user/token': ApiUserTokenResponse;
+  '/api/user/export': ApiUserExportResponse;
   '/api/users': ApiUsersResponse;
   '/api/users/[id]': ApiUsersIdResponse;
   '/api/server/clear_temp': ApiServerClearTempResponse;
   '/api/server/clear_zeros': ApiServerClearZerosResponse;
   '/api/server/requery_size': ApiServerRequerySizeResponse;
+  '/api/server/settings': ApiServerSettingsResponse;
+  '/api/server/thumbnails': ApiServerThumbnailsResponse;
   '/api/healthcheck': ApiHealthcheckResponse;
   '/api/setup': ApiSetupResponse;
   '/api/upload': ApiUploadResponse;

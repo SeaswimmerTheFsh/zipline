@@ -81,7 +81,7 @@ export default function UserTableView() {
             },
             {
               accessor: 'actions',
-              width: 150,
+              width: 45 * 3,
               render: (user) => (
                 <Group gap='sm'>
                   <Tooltip label="View user's files">

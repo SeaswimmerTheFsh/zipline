@@ -1,10 +1,11 @@
+import { config as libConfig, reloadSettings } from '@/lib/config';
 import { SafeConfig, safeConfig } from '@/lib/config/safe';
 import { ZiplineTheme } from '@/lib/theme';
 import { readThemes } from '@/lib/theme/file';
 import { GetServerSideProps, GetServerSidePropsContext } from 'next';
 
 export function withSafeConfig<T = unknown>(
-  fn: (ctx: GetServerSidePropsContext) => T | Promise<T> = (): any => {},
+  fn: (ctx: GetServerSidePropsContext, config: SafeConfig) => T | Promise<T> = (): any => {},
 ): GetServerSideProps<
   T & {
     config: SafeConfig;
@@ -13,9 +14,10 @@ export function withSafeConfig<T = unknown>(
   }
 > {
   return async (ctx) => {
-    const config = safeConfig();
+    if (!libConfig) await reloadSettings();
 
-    const data = await fn(ctx);
+    const config = safeConfig(libConfig);
+    const data = await fn(ctx, config);
 
     if ((data as any) && (data as any).notFound)
       return {

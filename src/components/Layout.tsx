@@ -14,6 +14,7 @@ import {
   Menu,
   NavLink,
   Paper,
+  ScrollArea,
   Title,
   useMantineColorScheme,
   useMantineTheme,
@@ -30,10 +31,12 @@ import {
   IconFileUpload,
   IconFiles,
   IconFolder,
+  IconGraph,
   IconHome,
   IconLink,
   IconLogout,
   IconRefreshDot,
+  IconSettingsExclamation,
   IconSettingsFilled,
   IconShieldLockFilled,
   IconTags,
@@ -44,7 +47,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState } from 'react';
 import ConfigProvider from './ConfigProvider';
-import { IconGraph } from '@tabler/icons-react';
 
 type NavLinks = {
   label: string;
@@ -115,6 +117,12 @@ const navLinks: NavLinks[] = [
     active: (path: string) => path.startsWith('/dashboard/admin'),
     links: [
       {
+        label: 'Settings',
+        icon: <IconSettingsFilled size='1rem' />,
+        active: (path: string) => path === '/dashboard/admin/settings',
+        href: '/dashboard/admin/settings',
+      },
+      {
         label: 'Users',
         icon: <IconUsersGroup size='1rem' />,
         active: (path: string) => path === '/dashboard/admin/users',
@@ -138,7 +146,7 @@ export default function Layout({ children, config }: { children: React.ReactNode
   const router = useRouter();
   const modals = useModals();
   const clipboard = useClipboard();
-  const [setUser, setToken] = useUserStore((s) => [s.setUser, s.setToken]);
+  const [setUser] = useUserStore((s) => [s.setUser]);
 
   const { user, mutate } = useLogin();
   const { avatar } = useAvatar();
@@ -163,7 +171,7 @@ export default function Layout({ children, config }: { children: React.ReactNode
             icon: <IconClipboardCopy size='1rem' />,
           });
         } else {
-          clipboard.copy(data?.token);
+          clipboard.copy(data?.token ?? '');
           showNotification({
             title: 'Copied',
             message: 'Your token has been copied to your clipboard.',
@@ -196,7 +204,6 @@ export default function Layout({ children, config }: { children: React.ReactNode
             icon: <IconRefreshDot size='1rem' />,
           });
         } else {
-          setToken(data?.token);
           setUser(data?.user);
           mutate(data as Response['/api/user']);
 
@@ -215,6 +222,7 @@ export default function Layout({ children, config }: { children: React.ReactNode
     <AppShell
       navbar={{ breakpoint: 'sm', width: { sm: 200, lg: 230 }, collapsed: { mobile: !opened } }}
       header={{ height: { base: 50, md: 70 } }}
+      footer={{ height: { base: 0.1 } }}
     >
       <AppShell.Header px='md'>
         <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
@@ -231,7 +239,7 @@ export default function Layout({ children, config }: { children: React.ReactNode
             <Avatar src={config.website.titleLogo} alt='Zipline logo' radius='sm' size='md' mr='md' />
           )}
 
-          <Title fw={700}>Zipline</Title>
+          <Title fw={700}>{config.website.title.trim()}</Title>
 
           <div style={{ marginLeft: 'auto' }}>
             <Menu shadow='md' width={200}>
@@ -274,6 +282,16 @@ export default function Layout({ children, config }: { children: React.ReactNode
                 >
                   Settings
                 </Menu.Item>
+
+                {isAdministrator(user?.role) && (
+                  <Menu.Item
+                    leftSection={<IconSettingsExclamation size='1rem' />}
+                    component={Link}
+                    href='/dashboard/admin/settings'
+                  >
+                    Server Settings
+                  </Menu.Item>
+                )}
 
                 <Menu.Divider />
                 <Menu.Item
@@ -338,19 +356,21 @@ export default function Layout({ children, config }: { children: React.ReactNode
             }
           })}
 
-        <Box mt='auto'>
-          {config.website.externalLinks.map(({ name, url }) => (
-            <NavLink
-              key={name}
-              label={name}
-              leftSection={<IconExternalLink size='1rem' />}
-              variant='light'
-              component={Link}
-              href={url}
-              target='_blank'
-            />
-          ))}
-        </Box>
+        <ScrollArea mah={200} mt='auto'>
+          <Box>
+            {config.website.externalLinks.map(({ name, url }, i) => (
+              <NavLink
+                key={i}
+                label={name}
+                leftSection={<IconExternalLink size='1rem' />}
+                variant='light'
+                component={Link}
+                href={url}
+                target='_blank'
+              />
+            ))}
+          </Box>
+        </ScrollArea>
       </AppShell.Navbar>
 
       <AppShell.Main>
@@ -360,6 +380,8 @@ export default function Layout({ children, config }: { children: React.ReactNode
           </Paper>
         </ConfigProvider>
       </AppShell.Main>
+
+      <AppShell.Footer display='none' />
     </AppShell>
   );
 }

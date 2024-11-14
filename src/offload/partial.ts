@@ -1,14 +1,22 @@
 import { bytes } from '@/lib/bytes';
-import { config } from '@/lib/config';
+import { reloadSettings } from '@/lib/config';
 import { prisma } from '@/lib/db';
 import { fileSelect } from '@/lib/db/models/file';
 import { userSelect } from '@/lib/db/models/user';
-import { onUpload } from '@/lib/discord';
+import { onUpload } from '@/lib/webhooks';
 import { log } from '@/lib/logger';
 import { UploadOptions } from '@/lib/uploader/parseHeaders';
 import { open, readFile, readdir, rm } from 'fs/promises';
 import { join } from 'path';
 import { isMainThread, workerData } from 'worker_threads';
+import { createReadStream } from 'fs';
+import {
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+} from '@aws-sdk/client-s3';
+import { getDatasource } from '@/lib/datasource';
+import { S3Datasource } from '@/lib/datasource/S3';
 
 export type PartialWorkerData = {
   user: {
@@ -25,9 +33,7 @@ export type PartialWorkerData = {
 };
 
 const { user, file, options, responseUrl, domain } = workerData as PartialWorkerData;
-const logger = log('scheduler').c('jobs').c('partial').c(file.filename);
-
-worker();
+const logger = log('tasks').c('partial').c(file.filename);
 
 if (isMainThread) {
   logger.error("partial upload worker can't run on the main thread");
@@ -44,12 +50,21 @@ if (!options.partial.lastchunk) {
   process.exit(1);
 }
 
-if (!config.chunks.enabled) {
-  logger.error('chunks are not enabled');
-  process.exit(1);
-}
+worker();
 
 async function worker() {
+  await reloadSettings();
+
+  const config = global.__config__;
+  getDatasource(config);
+
+  const datasource = global.__datasource__;
+
+  if (!config.chunks.enabled) {
+    logger.error('chunks are not enabled');
+    process.exit(1);
+  }
+
   logger.debug('started partial upload worker');
 
   const partials = await readdir(config.core.tempDirectory).then((files) =>
@@ -73,38 +88,112 @@ async function worker() {
     },
   });
 
-  // todo: support s3
+  if (config.datasource.type === 'local') {
+    const fd = await open(join(config.datasource.local!.directory, file.filename), 'w');
 
-  const fd = await open(join(config.datasource.local!.directory, file.filename), 'w');
+    for (let i = 0; i !== readChunks.length; ++i) {
+      const chunk = readChunks[i];
 
-  for (let i = 0; i !== readChunks.length; ++i) {
-    const chunk = readChunks[i];
+      const buffer = await readFile(join(config.core.tempDirectory, chunk.file));
 
-    const buffer = await readFile(join(config.core.tempDirectory, chunk.file));
+      const { bytesWritten } = await fd.write(buffer, 0, buffer.length, chunk.start);
 
-    const { bytesWritten } = await fd.write(buffer, 0, buffer.length, chunk.start);
-
-    await rm(join(config.core.tempDirectory, chunk.file));
-    await prisma.incompleteFile.update({
-      where: {
-        id: incompleteFile.id,
-      },
-      data: {
-        chunksComplete: {
-          increment: 1,
+      await rm(join(config.core.tempDirectory, chunk.file));
+      await prisma.incompleteFile.update({
+        where: {
+          id: incompleteFile.id,
         },
-        status: 'PROCESSING',
-      },
-    });
+        data: {
+          chunksComplete: {
+            increment: 1,
+          },
+          status: 'PROCESSING',
+        },
+      });
 
-    logger.debug(`wrote chunk ${i + 1}/${readChunks.length}`, {
-      bytesWritten,
-      start: chunk.start,
-      end: chunk.end,
-    });
+      logger.debug(`wrote chunk ${i + 1}/${readChunks.length}`, {
+        bytesWritten,
+        start: chunk.start,
+        end: chunk.end,
+      });
+    }
+
+    await fd.close();
+  } else if (config.datasource.type === 's3') {
+    const s3datasource = datasource as S3Datasource;
+    const { UploadId } = await s3datasource.client.send(
+      new CreateMultipartUploadCommand({ Bucket: s3datasource.options.bucket, Key: file.filename }),
+    );
+
+    const partResults = [];
+
+    for (let i = 0; i !== readChunks.length; ++i) {
+      const chunk = readChunks[i];
+
+      const stream = createReadStream(join(config.core.tempDirectory, chunk.file));
+
+      try {
+        const res = await s3datasource.client.send(
+          new UploadPartCommand({
+            Bucket: s3datasource.options.bucket,
+            Key: file.filename,
+            UploadId,
+            PartNumber: i + 1,
+            Body: stream,
+            ContentLength: chunk.end - chunk.start,
+          }),
+        );
+
+        logger.debug(`uploaded chunk to s3 ${i + 1}/${readChunks.length}`, {
+          ETag: res.ETag,
+          start: chunk.start,
+          end: chunk.end,
+        });
+
+        partResults.push({
+          ETag: res.ETag,
+          PartNumber: i + 1,
+        });
+      } catch (e) {
+        logger.error('error while uploading chunk');
+        console.error(e);
+        return;
+      } finally {
+        await rm(join(config.core.tempDirectory, chunk.file));
+
+        await prisma.incompleteFile.update({
+          where: {
+            id: incompleteFile.id,
+          },
+          data: {
+            chunksComplete: {
+              increment: 1,
+            },
+            status: 'PROCESSING',
+          },
+        });
+      }
+    }
+
+    try {
+      await s3datasource.client.send(
+        new CompleteMultipartUploadCommand({
+          Bucket: s3datasource.options.bucket,
+          Key: file.filename,
+          UploadId,
+          MultipartUpload: {
+            Parts: partResults,
+          },
+        }),
+      );
+
+      logger.debug('completed multipart upload for s3');
+    } catch (e) {
+      logger.error('error while completing multipart upload');
+      console.error(e);
+      return;
+    }
   }
-
-  await fd.close();
 
   await prisma.incompleteFile.update({
     where: {

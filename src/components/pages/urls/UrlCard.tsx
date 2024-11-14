@@ -4,11 +4,11 @@ import { Url } from '@/lib/db/models/url';
 import { formatRootUrl } from '@/lib/url';
 import { ActionIcon, Anchor, Card, Group, Menu, Stack, Text, Tooltip } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
-import { IconCopy, IconDots, IconTrashFilled } from '@tabler/icons-react';
+import { IconCopy, IconDots, IconPencil, IconTrashFilled } from '@tabler/icons-react';
 import { copyUrl, deleteUrl } from './actions';
 import { useSettingsStore } from '@/lib/store/settings';
 
-export default function UserCard({ url }: { url: Url }) {
+export default function UserCard({ url, setSelectedUrl }: { url: Url; setSelectedUrl: (url: Url) => void }) {
   const config = useConfig();
   const clipboard = useClipboard();
 
@@ -51,6 +51,9 @@ export default function UserCard({ url }: { url: Url }) {
                 >
                   Copy destination
                 </Menu.Item>
+                <Menu.Item leftSection={<IconPencil size='1rem' />} onClick={() => setSelectedUrl(url)}>
+                  Edit
+                </Menu.Item>
                 <Menu.Item
                   leftSection={<IconTrashFilled size='1rem' />}
                   color='red'
@@ -65,6 +68,9 @@ export default function UserCard({ url }: { url: Url }) {
 
         <Card.Section inheritPadding py='xs'>
           <Stack gap={1}>
+            <Text size='xs' c='dimmed'>
+              <b>Views:</b> {url.views.toLocaleString()}
+            </Text>
             <Text size='xs' c='dimmed'>
               <b>Created:</b> <RelativeDate date={url.createdAt} />
             </Text>
@@ -81,7 +87,10 @@ export default function UserCard({ url }: { url: Url }) {
             </Text>
             {url.vanity && (
               <Text size='xs' c='dimmed'>
-                <b>Code:</b> {url.code}
+                <b>Code:</b>{' '}
+                <Anchor target='_blank' href={formatRootUrl(config.urls.route, url.code)}>
+                  {url.code}
+                </Anchor>
               </Text>
             )}
           </Stack>

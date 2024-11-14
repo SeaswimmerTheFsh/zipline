@@ -11,6 +11,8 @@ import SettingsMfa from './parts/SettingsMfa';
 import SettingsOAuth from './parts/SettingsOAuth';
 import SettingsServerActions from './parts/SettingsServerUtil';
 import SettingsUser from './parts/SettingsUser';
+import SettingsExports from './parts/SettingsExports';
+import SettingsSessions from './parts/SettingsSessions';
 
 export default function DashboardSettings() {
   const config = useConfig();
@@ -27,14 +29,19 @@ export default function DashboardSettings() {
 
         <SettingsAvatar />
 
+        <SettingsSessions />
+
+        {config.features.oauthRegistration && <SettingsOAuth />}
+
         <SettingsDashboard />
 
         <SettingsFileView />
 
-        {config.features.oauthRegistration && <SettingsOAuth />}
         {eitherTrue(config.mfa.totp.enabled, config.mfa.passkeys) && <SettingsMfa />}
 
         <SettingsGenerators />
+
+        <SettingsExports />
 
         {isAdministrator(user?.role) && <SettingsServerActions />}
       </SimpleGrid>

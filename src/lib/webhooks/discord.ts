@@ -1,14 +1,14 @@
 import { z } from 'zod';
-import { discordContent } from './config/validate';
-import { ParseValue, parseString } from './parser';
-import { config } from './config';
-import { File } from './db/models/file';
-import { User } from './db/models/user';
-import { log } from './logger';
-import { Url } from './db/models/url';
-import { parserMetrics } from './parser/metrics';
+import { discordContent } from '../config/validate';
+import { ParseValue, parseString } from '../parser';
+import { config } from '../config';
+import { File } from '../db/models/file';
+import { User } from '../db/models/user';
+import { log } from '../logger';
+import { Url } from '../db/models/url';
+import { parserMetrics } from '../parser/metrics';
 
-const logger = log('discord');
+const logger = log('webhooks').c('discord');
 
 export type DiscordContent = z.infer<typeof discordContent>;
 export type WebhooksExecuteBody = {
@@ -75,7 +75,7 @@ export function parseContent(
 export function buildResponse(
   content: ReturnType<typeof parseContent>,
   file?: File,
-  url?: Url,
+  url?: Partial<Url>,
 ): WebhooksExecuteBody | null {
   if (!content) return null;
   if (!file && !url) return null;
@@ -138,7 +138,15 @@ export async function onUpload({ user, file, link }: { user: User; file: File; l
   return;
 }
 
-export async function onShorten({ user, url, link }: { user: User; url: Url; link: ParseValue['link'] }) {
+export async function onShorten({
+  user,
+  url,
+  link,
+}: {
+  user: User;
+  url: Partial<Url>;
+  link: ParseValue['link'];
+}) {
   if (!config.discord?.onShorten) return logger.debug('no onShorten config, no webhook executed');
   if (!config.discord?.webhookUrl || !config.discord?.onShorten?.webhookUrl)
     return logger.debug('no webhookUrl config, no webhook executed');

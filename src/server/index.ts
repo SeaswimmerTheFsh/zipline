@@ -1,19 +1,22 @@
-import { readEnv } from '@/lib/config/read';
-import { validateEnv } from '@/lib/config/validate';
+import { reloadSettings } from '@/lib/config';
+import { getDatasource } from '@/lib/datasource';
 import { prisma } from '@/lib/db';
 import { runMigrations } from '@/lib/db/migration';
 import { log } from '@/lib/logger';
-import { Scheduler } from '@/lib/scheduler';
-import clearInvites from '@/lib/scheduler/jobs/clearInvites';
-import deleteFiles from '@/lib/scheduler/jobs/deleteFiles';
-import maxViews from '@/lib/scheduler/jobs/maxViews';
-import metrics from '@/lib/scheduler/jobs/metrics';
-import thumbnails from '@/lib/scheduler/jobs/thumbnails';
+import { notNull } from '@/lib/primitive';
+import { isAdministrator } from '@/lib/role';
+import { Tasks } from '@/lib/tasks';
+import clearInvites from '@/lib/tasks/run/clearInvites';
+import deleteFiles from '@/lib/tasks/run/deleteFiles';
+import maxViews from '@/lib/tasks/run/maxViews';
+import metrics from '@/lib/tasks/run/metrics';
+import thumbnails from '@/lib/tasks/run/thumbnails';
 import { fastifyCookie } from '@fastify/cookie';
 import { fastifyCors } from '@fastify/cors';
 import { fastifyMultipart } from '@fastify/multipart';
 import { fastifyRateLimit } from '@fastify/rate-limit';
 import { fastifySensible } from '@fastify/sensible';
+import { fastifyStatic } from '@fastify/static';
 import fastify from 'fastify';
 import { mkdir } from 'fs/promises';
 import { parse } from 'url';
@@ -23,7 +26,6 @@ import next, { ALL_METHODS } from './plugins/next';
 import loadRoutes from './routes';
 import { filesRoute } from './routes/files.dy';
 import { urlsRoute } from './routes/urls.dy';
-import { isAdministrator } from '@/lib/role';
 
 const MODE = process.env.NODE_ENV || 'production';
 const logger = log('server');
@@ -40,8 +42,11 @@ BigInt.prototype.toJSON = function () {
 
 async function main() {
   logger.info('starting zipline', { mode: MODE, version: version });
-  logger.info('reading environment for configuration');
-  const config = validateEnv(readEnv());
+  logger.info('reading settings...');
+  await reloadSettings();
+
+  const config = global.__config__;
+  getDatasource(config);
 
   if (config.datasource.type === 'local') {
     await mkdir(config.datasource.local!.directory, { recursive: true });
@@ -52,7 +57,15 @@ async function main() {
 
   await runMigrations();
 
-  const server = fastify({ ignoreTrailingSlash: true });
+  const server = fastify({
+    ignoreTrailingSlash: true,
+    https: notNull(config.ssl.key, config.ssl.cert)
+      ? {
+          key: config.ssl.key!,
+          cert: config.ssl.cert!,
+        }
+      : null,
+  });
 
   await server.register(fastifyCookie, {
     secret: config.core.secret,
@@ -67,6 +80,11 @@ async function main() {
     limits: {
       fileSize: config.files.maxFileSize,
     },
+  });
+
+  await server.register(fastifyStatic, {
+    serve: false,
+    root: '/',
   });
 
   if (config.ratelimit.enabled) {
@@ -148,10 +166,27 @@ async function main() {
       });
 
       body.on('end', () => {
+        if (bodyString === '' || bodyString === null) return done(null, {});
+
         server.getDefaultJsonParser('error', 'ignore')(req, bodyString, done);
       });
     } else done(null, body);
   });
+
+  server.setErrorHandler((error, req, res) => {
+    logger.error(error);
+
+    if (error.statusCode) {
+      res.status(error.statusCode);
+      res.send({ error: error.message, statusCode: error.statusCode });
+    } else {
+      res.status(500);
+      res.send({ error: 'Internal Server Error', statusCode: 500, message: error.message });
+    }
+  });
+
+  const tasks = new Tasks();
+  server.decorate('tasks', tasks);
 
   await server.listen({
     port: config.core.port,
@@ -160,28 +195,31 @@ async function main() {
 
   logger.info('server started', { hostname: config.core.hostname, port: config.core.port });
 
-  const scheduler = new Scheduler();
-  scheduler.interval('deletefiles', config.scheduler.deleteInterval, deleteFiles(prisma));
-  scheduler.interval('maxviews', config.scheduler.maxViewsInterval, maxViews(prisma));
+  // Tasks
+  tasks.interval('deletefiles', config.tasks.deleteInterval, deleteFiles(prisma));
+  tasks.interval('maxviews', config.tasks.maxViewsInterval, maxViews(prisma));
 
-  if (config.features.metrics)
-    scheduler.interval('metrics', config.scheduler.metricsInterval, metrics(prisma));
+  if (config.features.metrics) tasks.interval('metrics', config.tasks.metricsInterval, metrics(prisma));
 
   if (config.features.thumbnails.enabled) {
     for (let i = 0; i !== config.features.thumbnails.num_threads; ++i) {
-      scheduler.worker(`thumbnail-${i}`, './build/offload/thumbnails.js', {
+      tasks.worker(`thumbnail-${i}`, './build/offload/thumbnails.js', {
         id: `thumbnail-${i}`,
         enabled: config.features.thumbnails.enabled,
       });
     }
 
-    scheduler.interval('thumbnails', config.scheduler.thumbnailsInterval, thumbnails(prisma));
-    scheduler.interval('clearinvites', config.scheduler.clearInvitesInterval, clearInvites(prisma));
+    tasks.interval('thumbnails', config.tasks.thumbnailsInterval, thumbnails(prisma));
+    tasks.interval('clearinvites', config.tasks.clearInvitesInterval, clearInvites(prisma));
   }
 
-  logger.info('starting scheduler');
-
-  scheduler.start();
+  tasks.start();
 }
 
 main();
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    tasks: Tasks;
+  }
+}
